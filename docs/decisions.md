@@ -11,6 +11,7 @@ A short log of approved technical decisions. Product behaviour is defined in [Sk
 | 5 | **Tailwind CSS v4** using the official Vite integration, not legacy `tailwind.config.js` / `postcss.config.js` assumptions. Theme colours are defined in CSS. | 2026-10-28 |
 | 6 | Use the newer Supabase **publishable key** (`sb_publishable_...`), not the legacy `anon` key. | 2026-10-28 |
 | 7 | **No `.github/` directory** for now (revisit if needed). | 2026-10-28 |
+| 8 | **GitHub Actions for automated database regression testing** (`.github/workflows/database-tests.yml`): tests run in isolated temporary Supabase environments (`supabase start` and `supabase test db --local`) on GitHub-hosted Ubuntu runners without requiring hosted Supabase credentials or production database connections; local WSL 2 and Docker Desktop installation is postponed; workflows initially use manual `workflow_dispatch` triggers before considering automatic triggers. | 2026-10-29 |
 
 ## Conventions agreed with the architecture
 

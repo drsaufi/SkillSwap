@@ -1,0 +1,32 @@
+name: Database pgTAP Tests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pgtap-tests:
+    name: Run isolated local Supabase migrations & pgTAP tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.122.0
+
+      - name: Start isolated local Supabase database
+        run: supabase start
+
+      - name: Run pgTAP database tests (--local)
+        run: supabase test db --local
+
+      - name: Stop local Supabase containers
+        if: always()
+        run: supabase stop --no-backup
