@@ -3,6 +3,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes.exchange_requests import router as exchange_requests_router
+from app.api.routes.exchange_sessions import router as exchange_sessions_router
 from app.api.routes.health import router as health_router
 from app.api.routes.members import router as members_router
 from app.api.routes.profiles import router as profiles_router
@@ -34,6 +36,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(profiles_router)
     application.include_router(skills_router)
     application.include_router(members_router)
+    application.include_router(exchange_requests_router)
+    application.include_router(exchange_sessions_router)
 
     return application
 
