@@ -19,7 +19,9 @@ export function AiMatchesPage() {
       setCandidateCount(res.candidate_count)
       setSearched(true)
     } catch (err: unknown) {
-      if (err instanceof ApiError && err.code === 'ai_unavailable') {
+      if (err instanceof ApiError && (err.code === 'ai_quota_exhausted' || err.code === 'ai_limit_reached')) {
+        setErrorMsg(err.message || 'Free AI usage limit reached. Please try again later. You can still explore skills manually.')
+      } else if (err instanceof ApiError && err.code === 'ai_unavailable') {
         setErrorMsg('The AI Match Assistant is temporarily unavailable. Please try again later.')
       } else {
         setErrorMsg(err instanceof ApiError ? err.message : 'Failed to retrieve AI matches.')

@@ -103,8 +103,10 @@ def block_real_network(monkeypatch: pytest.MonkeyPatch):
 @pytest.fixture(autouse=True)
 def clean_verification_cache():
     sb.reset_auth_verification_clients()
+    ai_service.reset_ai_usage_limits()
     yield
     sb.reset_auth_verification_clients()
+    ai_service.reset_ai_usage_limits()
 
 
 def make_settings(
@@ -1042,3 +1044,44 @@ def test_ai_unavailable_when_unconfigured_or_failing_and_app_stays_healthy(
     )
     assert dash_res.status_code == 200
     assert dash_res.json()["active_offered_skills_count"] == 1
+
+
+def test_ai_daily_limit_exceeded_returns_429(step34e_env: Any) -> None:
+    client, _, _ = step34e_env
+
+    # First 3 requests succeed
+    for _ in range(3):
+        res = client.post(
+            "/ai/skill-matches",
+            headers={"Authorization": f"Bearer {TOKEN_A}"},
+        )
+        assert res.status_code == 200
+
+    # 4th request from same user is blocked by rate limit
+    res_blocked = client.post(
+        "/ai/skill-matches",
+        headers={"Authorization": f"Bearer {TOKEN_A}"},
+    )
+    assert res_blocked.status_code == 429
+    body = res_blocked.json()
+    assert body["error"]["code"] == "ai_limit_reached"
+    assert "Free AI usage limit reached" in body["error"]["message"]
+
+
+def test_ai_provider_quota_exhausted_returns_429(step34e_env: Any) -> None:
+    client, backend, _ = step34e_env
+
+    # Upstream LLM returns HTTP 429
+    backend.llm_behaviour = lambda req: httpx.Response(
+        429,
+        json={"error": {"code": 429, "message": "Resource has been exhausted"}},
+    )
+
+    res = client.post(
+        "/ai/skill-matches",
+        headers={"Authorization": f"Bearer {TOKEN_A}"},
+    )
+    assert res.status_code == 429
+    body = res.json()
+    assert body["error"]["code"] == "ai_quota_exhausted"
+    assert "Free AI usage limit reached" in body["error"]["message"]

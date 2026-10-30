@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
 import json
 import re
+import threading
 from typing import Any
 from uuid import UUID
 
@@ -25,6 +27,7 @@ MAX_RETURNED_MATCHES = 3
 MAX_EXPLANATION_LENGTH = 500
 DIRECTORY_SKILLS_PAGE_SIZE = 100
 DIRECTORY_SKILLS_MAX_PAGES = 5
+DAILY_AI_REQUEST_LIMIT = 3
 
 _PLACEHOLDER_KEYS = frozenset(
     {"", "your-llm-api-key-here", "changeme", "placeholder"}
@@ -47,6 +50,10 @@ SYSTEM_PROMPT = (
     '"explanation": "<1-2 concise sentences grounded in the provided data>"}]}'
 )
 
+# Process-local daily AI request rate limiting
+_user_request_counts: dict[tuple[UUID, date], int] = {}
+_rate_limit_lock = threading.Lock()
+
 
 def ai_unavailable_error() -> AppError:
     """Return safe HTTP 503 error when the AI service is unconfigured or unavailable."""
@@ -55,6 +62,45 @@ def ai_unavailable_error() -> AppError:
         error_code="ai_unavailable",
         message="AI matching service is currently unavailable.",
     )
+
+
+def ai_quota_exhausted_error() -> AppError:
+    """Return safe HTTP 429 error when the free LLM provider quota is exhausted."""
+    return AppError(
+        status_code=429,
+        error_code="ai_quota_exhausted",
+        message="Free AI usage limit reached. Please try again later. You can still explore skills manually.",
+    )
+
+
+def ai_daily_limit_exceeded_error() -> AppError:
+    """Return safe HTTP 429 error when the per-user daily demo request limit is reached."""
+    return AppError(
+        status_code=429,
+        error_code="ai_limit_reached",
+        message="Free AI usage limit reached. Please try again later. You can still explore skills manually.",
+    )
+
+
+def check_and_record_ai_usage(user_id: UUID) -> None:
+    """Enforce a maximum of 3 AI match requests per user per UTC day for course demo safety.
+
+    Note: This is a thread-safe process-local limiter to prevent accidental high-volume
+    request bursts during the demonstration. It resets on process restart and is not
+    a cloud billing guarantee.
+    """
+    today = datetime.now(timezone.utc).date()
+    with _rate_limit_lock:
+        current_count = _user_request_counts.get((user_id, today), 0)
+        if current_count >= DAILY_AI_REQUEST_LIMIT:
+            raise ai_daily_limit_exceeded_error()
+        _user_request_counts[(user_id, today)] = current_count + 1
+
+
+def reset_ai_usage_limits() -> None:
+    """Reset the process-local rate limit counters (for automated testing)."""
+    with _rate_limit_lock:
+        _user_request_counts.clear()
 
 
 def _is_ai_configured(settings: Settings) -> bool:
@@ -266,9 +312,12 @@ def _call_llm_provider(
                 "generationConfig": {
                     "temperature": 0.2,
                     "responseMimeType": "application/json",
+                    "maxOutputTokens": 800,
                 },
             }
             response = client.post(url, headers=headers, json=body)
+            if response.status_code == 429:
+                raise ai_quota_exhausted_error()
             if response.status_code != 200:
                 raise ai_unavailable_error()
             resp_json = response.json()
@@ -283,6 +332,7 @@ def _call_llm_provider(
             body = {
                 "model": model,
                 "temperature": 0.2,
+                "max_tokens": 800,
                 "response_format": {"type": "json_object"},
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -292,6 +342,8 @@ def _call_llm_provider(
             response = client.post(
                 OPENAI_CHAT_COMPLETIONS_URL, headers=headers, json=body
             )
+            if response.status_code == 429:
+                raise ai_quota_exhausted_error()
             if response.status_code != 200:
                 raise ai_unavailable_error()
             resp_json = response.json()
@@ -446,6 +498,9 @@ def generate_skill_matches(
     """Find, rank and validate grounded AI skill matches for the authenticated member."""
     if not _is_ai_configured(settings):
         raise ai_unavailable_error()
+
+    # Rate limiting: max 3 requests per user per UTC day for course demo safety
+    check_and_record_ai_usage(user_id)
 
     user_profile = profile_repo.select_by_user_id(db, user_id)
     if user_profile is None:

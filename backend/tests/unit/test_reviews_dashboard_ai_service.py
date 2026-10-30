@@ -76,6 +76,14 @@ def block_real_network(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(socket.socket, "connect", blocked)
 
 
+@pytest.fixture(autouse=True)
+def clean_ai_rate_limits():
+    """Ensure rate limit counters are reset before and after each test."""
+    ai_service.reset_ai_usage_limits()
+    yield
+    ai_service.reset_ai_usage_limits()
+
+
 class FakeUserScopedClient:
     """Mock UserScopedClient for unit tests."""
 
