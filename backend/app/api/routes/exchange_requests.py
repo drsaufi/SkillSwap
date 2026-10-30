@@ -106,3 +106,15 @@ def cancel_exchange_request(
     return exchange_service.cancel_exchange_request(
         db, current_user.user_id, id
     )
+
+
+@router.get("/{id}/session", response_model=ExchangeSessionResponse)
+def get_exchange_request_session(
+    id: UUID,
+    current_user: CurrentUser,
+    db: UserDb,
+) -> ExchangeSessionResponse:
+    """Retrieve the exchange session associated with an exchange request."""
+    return exchange_service.get_exchange_session_by_request(
+        db, current_user.user_id, id
+    )

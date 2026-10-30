@@ -208,6 +208,27 @@ def select_exchange_session_by_id(
         ) from exc
 
 
+def select_exchange_session_by_request_id(
+    client: UserScopedClient, request_id: UUID
+) -> dict[str, Any] | None:
+    """Fetch a single exchange session associated with request_id (RLS enforced)."""
+    try:
+        response = (
+            client.table("exchange_sessions")
+            .select(EXCHANGE_SESSION_COLUMNS)
+            .eq("request_id", str(request_id))
+            .maybe_single()
+            .execute()
+        )
+        return response.data if response is not None else None
+    except APIError as exc:
+        raise DatabaseOperationError(
+            sqlstate=str(exc.code) if exc.code is not None else None,
+            message=exc.message,
+            details=exc.details,
+        ) from exc
+
+
 def rpc_confirm_exchange_session(
     client: UserScopedClient, session_id: UUID
 ) -> dict[str, Any]:

@@ -117,6 +117,24 @@ def get_exchange_session(
     return ExchangeSessionResponse.model_validate(session_data)
 
 
+def get_exchange_session_by_request(
+    db: UserScopedClient,
+    user_id: UUID,
+    request_id: UUID,
+) -> ExchangeSessionResponse:
+    """Retrieve an exchange session for a request where caller is an authorized participant."""
+    session_data = exchange_repo.select_exchange_session_by_request_id(
+        db, request_id
+    )
+    if session_data is None:
+        raise AppError(
+            status_code=404,
+            error_code="session_not_found",
+            message="Exchange session not found.",
+        )
+    return ExchangeSessionResponse.model_validate(session_data)
+
+
 def confirm_exchange_session(
     db: UserScopedClient,
     user_id: UUID,

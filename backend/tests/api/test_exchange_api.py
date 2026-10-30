@@ -500,18 +500,25 @@ class FakeSupabaseExchange:
                 if f.startswith("eq."):
                     target_id = f.removeprefix("eq.")
 
+            target_req_id = None
+            for f in qp.get("request_id", []):
+                if f.startswith("eq."):
+                    target_req_id = f.removeprefix("eq.")
+
             if request.method == "GET":
-                if not target_id or target_id not in self.sessions:
-                    return httpx.Response(200, json=[])
+                matching = []
+                for s in self.sessions.values():
+                    req_row = self.requests.get(s["request_id"])
+                    # RLS: caller must be requester or receiver
+                    if not req_row or not caller_id or caller_id not in (req_row["requester_user_id"], req_row["receiver_user_id"]):
+                        continue
+                    if target_id and s["id"] != target_id:
+                        continue
+                    if target_req_id and s["request_id"] != target_req_id:
+                        continue
+                    matching.append(s)
 
-                session_row = self.sessions[target_id]
-                req_row = self.requests.get(session_row["request_id"])
-
-                # RLS: only participants can see the session
-                if not req_row or not caller_id or caller_id not in (req_row["requester_user_id"], req_row["receiver_user_id"]):
-                    return httpx.Response(200, json=[])
-
-                return httpx.Response(200, json=[session_row])
+                return httpx.Response(200, json=matching)
 
         return httpx.Response(404, json={"msg": "not found"})
 
@@ -893,6 +900,39 @@ def test_get_exchange_session_not_found(client: TestClient) -> None:
     non_existent = str(uuid4())
     response = client.get(
         f"/exchange-sessions/{non_existent}", headers=bearer(TOKEN_A)
+    )
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "session_not_found"
+
+
+def test_get_exchange_request_session_success(client: TestClient) -> None:
+    # Caller User A is a participant in REQUEST_ACCEPTED_ID
+    response = client.get(
+        f"/exchange-requests/{REQUEST_ACCEPTED_ID}/session",
+        headers=bearer(TOKEN_A),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == SESSION_1_ID
+    assert data["request_id"] == REQUEST_ACCEPTED_ID
+
+
+def test_get_exchange_request_session_outsider_returns_404(
+    client: TestClient,
+) -> None:
+    # User C is outsider to REQUEST_ACCEPTED_ID
+    response = client.get(
+        f"/exchange-requests/{REQUEST_ACCEPTED_ID}/session",
+        headers=bearer(TOKEN_C),
+    )
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "session_not_found"
+
+
+def test_get_exchange_request_session_not_found(client: TestClient) -> None:
+    # REQUEST_1_ID has no accepted session yet
+    response = client.get(
+        f"/exchange-requests/{REQUEST_1_ID}/session", headers=bearer(TOKEN_A)
     )
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "session_not_found"
