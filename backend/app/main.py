@@ -3,6 +3,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes.ai import router as ai_router
+from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.exchange_requests import router as exchange_requests_router
 from app.api.routes.exchange_sessions import router as exchange_sessions_router
 from app.api.routes.health import router as health_router
@@ -38,6 +40,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(members_router)
     application.include_router(exchange_requests_router)
     application.include_router(exchange_sessions_router)
+    application.include_router(dashboard_router)
+    application.include_router(ai_router)
 
     return application
 
