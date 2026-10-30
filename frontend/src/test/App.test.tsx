@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { App } from '../App'
 import { AuthProvider } from '../context/AuthContext'
@@ -45,7 +45,7 @@ describe('SkillSwap Frontend Core Smoke Tests', () => {
     expect(screen.getByPlaceholderText(/Your password/i)).toBeInTheDocument()
   })
 
-  it('protects member-only routes when unauthenticated or unconfigured', () => {
+  it('protects member-only routes when unauthenticated or unconfigured', async () => {
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <AuthProvider>
@@ -55,12 +55,14 @@ describe('SkillSwap Frontend Core Smoke Tests', () => {
     )
 
     // Unauthenticated or unconfigured shows configuration requirement or login redirect
-    const hasConfigNotice = screen.queryByText(/Supabase Configuration Required/i)
-    const hasLoginHeading = screen.queryByText(/Welcome back/i)
-    expect(hasConfigNotice || hasLoginHeading).toBeTruthy()
+    await waitFor(() => {
+      const hasConfigNotice = screen.queryByText(/Supabase Configuration Required/i)
+      const hasLoginHeading = screen.queryByText(/Welcome back/i)
+      expect(hasConfigNotice || hasLoginHeading).toBeTruthy()
+    })
   })
 
-  it('protects /explore route when unauthenticated', () => {
+  it('protects /explore route when unauthenticated', async () => {
     render(
       <MemoryRouter initialEntries={['/explore']}>
         <AuthProvider>
@@ -69,12 +71,14 @@ describe('SkillSwap Frontend Core Smoke Tests', () => {
       </MemoryRouter>
     )
 
-    const hasConfigNotice = screen.queryByText(/Supabase Configuration Required/i)
-    const hasLoginHeading = screen.queryByText(/Welcome back/i)
-    expect(hasConfigNotice || hasLoginHeading).toBeTruthy()
+    await waitFor(() => {
+      const hasConfigNotice = screen.queryByText(/Supabase Configuration Required/i)
+      const hasLoginHeading = screen.queryByText(/Welcome back/i)
+      expect(hasConfigNotice || hasLoginHeading).toBeTruthy()
+    })
   })
 
-  it('protects /members/:id route when unauthenticated', () => {
+  it('protects /members/:id route when unauthenticated', async () => {
     render(
       <MemoryRouter initialEntries={['/members/usr-123']}>
         <AuthProvider>
@@ -83,8 +87,10 @@ describe('SkillSwap Frontend Core Smoke Tests', () => {
       </MemoryRouter>
     )
 
-    const hasConfigNotice = screen.queryByText(/Supabase Configuration Required/i)
-    const hasLoginHeading = screen.queryByText(/Welcome back/i)
-    expect(hasConfigNotice || hasLoginHeading).toBeTruthy()
+    await waitFor(() => {
+      const hasConfigNotice = screen.queryByText(/Supabase Configuration Required/i)
+      const hasLoginHeading = screen.queryByText(/Welcome back/i)
+      expect(hasConfigNotice || hasLoginHeading).toBeTruthy()
+    })
   })
 })

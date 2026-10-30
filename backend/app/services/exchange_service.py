@@ -35,7 +35,8 @@ def list_exchange_requests(
         limit=limit,
         offset=offset,
     )
-    items = [ExchangeRequestResponse.model_validate(r) for r in items_data]
+    enriched_items = exchange_repo.enrich_exchange_requests(db, items_data)
+    items = [ExchangeRequestResponse.model_validate(r) for r in enriched_items]
     return ExchangeRequestListResponse(
         items=items,
         total=total,
@@ -68,7 +69,8 @@ def create_exchange_request(
     }
 
     record = exchange_repo.insert_exchange_request(db, payload)
-    return ExchangeRequestResponse.model_validate(record)
+    enriched = exchange_repo.enrich_exchange_requests(db, [record])
+    return ExchangeRequestResponse.model_validate(enriched[0] if enriched else record)
 
 
 def accept_exchange_request(
@@ -88,7 +90,8 @@ def decline_exchange_request(
 ) -> ExchangeRequestResponse:
     """Decline a pending exchange request (receiver only)."""
     request_data = exchange_repo.rpc_decline_exchange_request(db, request_id)
-    return ExchangeRequestResponse.model_validate(request_data)
+    enriched = exchange_repo.enrich_exchange_requests(db, [request_data])
+    return ExchangeRequestResponse.model_validate(enriched[0] if enriched else request_data)
 
 
 def cancel_exchange_request(
@@ -98,7 +101,8 @@ def cancel_exchange_request(
 ) -> ExchangeRequestResponse:
     """Cancel a pending request (requester only) or accepted request (either participant)."""
     request_data = exchange_repo.rpc_cancel_exchange_request(db, request_id)
-    return ExchangeRequestResponse.model_validate(request_data)
+    enriched = exchange_repo.enrich_exchange_requests(db, [request_data])
+    return ExchangeRequestResponse.model_validate(enriched[0] if enriched else request_data)
 
 
 def get_exchange_session(

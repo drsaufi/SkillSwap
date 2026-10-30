@@ -92,6 +92,10 @@ export interface ExchangeRequest {
   format: ExchangeFormat
   created_at: string
   updated_at: string
+  requester_display_name?: string | null
+  receiver_display_name?: string | null
+  offered_skill_name?: string | null
+  wanted_skill_name?: string | null
 }
 
 export interface ExchangeRequestCreate {

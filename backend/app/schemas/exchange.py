@@ -68,6 +68,10 @@ class ExchangeRequestResponse(BaseModel):
     format: RequestFormat
     created_at: datetime
     updated_at: datetime
+    requester_display_name: str | None = None
+    receiver_display_name: str | None = None
+    offered_skill_name: str | None = None
+    wanted_skill_name: str | None = None
 
 
 class ExchangeRequestListResponse(BaseModel):

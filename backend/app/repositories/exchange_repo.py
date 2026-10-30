@@ -245,3 +245,74 @@ def rpc_confirm_exchange_session(
             message=exc.message,
             details=exc.details,
         ) from exc
+
+
+def enrich_exchange_requests(
+    client: UserScopedClient,
+    items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Enrich exchange request items with participant display names and skill names.
+
+    Performs safe, bounded read-only queries against profiles and skills using the
+    caller's authenticated user-scoped client. Never exposes sensitive fields.
+    """
+    if not items:
+        return items
+
+    user_ids = {
+        str(r[k])
+        for r in items
+        for k in ("requester_user_id", "receiver_user_id")
+        if r.get(k) is not None
+    }
+    skill_ids = {
+        str(r[k])
+        for r in items
+        for k in ("offered_skill_id", "wanted_skill_id")
+        if r.get(k) is not None
+    }
+
+    profile_names: dict[str, str] = {}
+    if user_ids:
+        try:
+            p_resp = (
+                client.table("profiles")
+                .select("user_id, display_name")
+                .in_("user_id", list(user_ids))
+                .execute()
+            )
+            if p_resp and p_resp.data:
+                for row in p_resp.data:
+                    if "user_id" in row and "display_name" in row:
+                        profile_names[str(row["user_id"])] = row["display_name"]
+        except Exception:
+            pass
+
+    skill_names: dict[str, str] = {}
+    if skill_ids:
+        try:
+            s_resp = (
+                client.table("skills")
+                .select("id, skill_name")
+                .in_("id", list(skill_ids))
+                .execute()
+            )
+            if s_resp and s_resp.data:
+                for row in s_resp.data:
+                    if "id" in row and "skill_name" in row:
+                        skill_names[str(row["id"])] = row["skill_name"]
+        except Exception:
+            pass
+
+    for r in items:
+        req_uid = str(r["requester_user_id"]) if r.get("requester_user_id") else None
+        rec_uid = str(r["receiver_user_id"]) if r.get("receiver_user_id") else None
+        off_sid = str(r["offered_skill_id"]) if r.get("offered_skill_id") else None
+        wan_sid = str(r["wanted_skill_id"]) if r.get("wanted_skill_id") else None
+
+        r["requester_display_name"] = profile_names.get(req_uid) if req_uid else None
+        r["receiver_display_name"] = profile_names.get(rec_uid) if rec_uid else None
+        r["offered_skill_name"] = skill_names.get(off_sid) if off_sid else None
+        r["wanted_skill_name"] = skill_names.get(wan_sid) if wan_sid else None
+
+    return items

@@ -406,5 +406,98 @@ describe('SkillSwap Frontend Integration & Contract Tests', () => {
         expect(api.cancelExchangeRequest).toHaveBeenCalledWith('req-acc-1')
       })
     })
+
+    it('displays participant names and exchanged skill names on incoming request card', async () => {
+      const mockIncomingRequest: ExchangeRequest = {
+        id: 'req-inc-1',
+        requester_user_id: 'usr-sarah',
+        receiver_user_id: 'usr-123',
+        offered_skill_id: 'sk-sarah-1',
+        wanted_skill_id: 'sk-ahmad-1',
+        status: 'pending',
+        message: 'Would love to learn Excel in exchange for Graphic Design!',
+        proposed_datetime: '2026-11-05T14:00:00Z',
+        format: 'online',
+        created_at: '2026-10-30T10:00:00Z',
+        updated_at: '2026-10-30T10:00:00Z',
+        requester_display_name: 'Sarah',
+        receiver_display_name: 'Ahmad',
+        offered_skill_name: 'Graphic Design',
+        wanted_skill_name: 'Microsoft Excel',
+      }
+
+      vi.mocked(api.getExchangeRequests).mockResolvedValue({
+        items: [mockIncomingRequest],
+        total: 1,
+      })
+      vi.mocked(api.acceptExchangeRequest).mockResolvedValue(mockSession)
+
+      render(
+        <MemoryRouter initialEntries={['/requests']}>
+          <RequestsPage />
+        </MemoryRouter>
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('Sarah')).toBeInTheDocument()
+      })
+
+      // Verify participant display names
+      expect(screen.getByText('Sarah')).toBeInTheDocument()
+      expect(screen.getByText('Ahmad')).toBeInTheDocument()
+
+      // Verify exchanged skills
+      expect(screen.getByText(/Sarah offers:/i)).toBeInTheDocument()
+      expect(screen.getByText('Graphic Design')).toBeInTheDocument()
+      expect(screen.getByText(/Sarah wants to learn:/i)).toBeInTheDocument()
+      expect(screen.getByText('Microsoft Excel')).toBeInTheDocument()
+
+      // Accept button is present and functional
+      const acceptBtn = screen.getByRole('button', { name: /^accept$/i })
+      expect(acceptBtn).toBeInTheDocument()
+      fireEvent.click(acceptBtn)
+      await waitFor(() => {
+        expect(api.acceptExchangeRequest).toHaveBeenCalledWith('req-inc-1')
+      })
+    })
+
+    it('handles missing participant and skill names gracefully without crashing', async () => {
+      const mockSparseRequest: ExchangeRequest = {
+        id: 'req-sparse-1',
+        requester_user_id: 'usr-x',
+        receiver_user_id: 'usr-123',
+        offered_skill_id: 'sk-x',
+        wanted_skill_id: 'sk-y',
+        status: 'pending',
+        message: 'Exchange proposal',
+        proposed_datetime: '2026-11-05T14:00:00Z',
+        format: 'online',
+        created_at: '2026-10-30T10:00:00Z',
+        updated_at: '2026-10-30T10:00:00Z',
+        requester_display_name: null,
+        receiver_display_name: null,
+        offered_skill_name: null,
+        wanted_skill_name: null,
+      }
+
+      vi.mocked(api.getExchangeRequests).mockResolvedValue({
+        items: [mockSparseRequest],
+        total: 1,
+      })
+
+      render(
+        <MemoryRouter initialEntries={['/requests']}>
+          <RequestsPage />
+        </MemoryRouter>
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('Offered Skill')).toBeInTheDocument()
+      })
+
+      expect(screen.getByText('Wanted Skill')).toBeInTheDocument()
+      expect(screen.getByText('Member')).toBeInTheDocument()
+      expect(screen.getByText('You')).toBeInTheDocument()
+    })
   })
 })

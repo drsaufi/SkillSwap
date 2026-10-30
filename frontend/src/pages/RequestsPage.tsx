@@ -363,82 +363,121 @@ export function RequestsPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {requests.map((req) => (
-                <div key={req.id} className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                          req.status === 'accepted'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : req.status === 'pending'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : req.status === 'completed'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {req.status}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(req.created_at).toLocaleDateString()} • {req.format}
-                      </span>
+              {requests.map((req) => {
+                const isIncoming = activeTab === 'incoming'
+                const fromName = req.requester_display_name || (isIncoming ? 'Member' : 'You')
+                const toName = req.receiver_display_name || (isIncoming ? 'You' : 'Member')
+                const requesterName = req.requester_display_name || (isIncoming ? 'Requester' : 'You')
+                const offeredSkillName = req.offered_skill_name || 'Offered Skill'
+                const wantedSkillName = req.wanted_skill_name || 'Wanted Skill'
+
+                return (
+                  <div key={req.id} className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                    {/* Header: Status, Date, Proposed Time, Format */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                            req.status === 'accepted'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : req.status === 'pending'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : req.status === 'completed'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {req.status}
+                        </span>
+                        <span className="text-xs text-gray-500 capitalize">
+                          {new Date(req.created_at).toLocaleDateString()} • {req.format.replace('_', ' ')}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-gray-600">
+                        <strong>Proposed Time:</strong> {new Date(req.proposed_datetime).toLocaleString()}
+                      </div>
                     </div>
 
-                    <div className="text-xs text-gray-600">
-                      <strong>Proposed Time:</strong> {new Date(req.proposed_datetime).toLocaleString()}
+                    {/* Participant and Exchanged Skill Details */}
+                    <div className="grid sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 text-xs">
+                      <div className="space-y-1.5">
+                        <div className="text-gray-700">
+                          <span className="font-semibold text-gray-500">From:</span>{' '}
+                          <span className="font-bold text-gray-900">{fromName}</span>
+                        </div>
+                        <div className="text-gray-700">
+                          <span className="font-semibold text-gray-500">To:</span>{' '}
+                          <span className="font-bold text-gray-900">{toName}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="text-gray-700">
+                          <span className="font-medium text-gray-600">{requesterName} offers:</span>{' '}
+                          <span className="font-bold text-brand-teal">{offeredSkillName}</span>
+                        </div>
+                        <div className="text-gray-700">
+                          <span className="font-medium text-gray-600">{requesterName} wants to learn:</span>{' '}
+                          <span className="font-bold text-indigo-700">{wantedSkillName}</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  <p className="text-sm text-gray-700 bg-gray-50 p-3.5 rounded-xl italic">&ldquo;{req.message}&rdquo;</p>
+                    {/* Message */}
+                    {req.message && (
+                      <p className="text-sm text-gray-700 bg-gray-50 p-3.5 rounded-xl italic">&ldquo;{req.message}&rdquo;</p>
+                    )}
 
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                    <div className="text-xs text-gray-500">
-                      Request ID: <code className="font-mono">{req.id.slice(0, 8)}</code>
-                    </div>
+                    {/* Footer: Secondary Request ID and Action Buttons */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-gray-100">
+                      <div className="text-[11px] text-gray-400 font-mono">
+                        Request ID: {req.id.slice(0, 8)}
+                      </div>
 
-                    <div className="flex items-center gap-2">
-                      {/* Incoming Pending Actions: Accept or Decline */}
-                      {activeTab === 'incoming' && req.status === 'pending' && (
-                        <>
+                      <div className="flex items-center gap-2">
+                        {/* Incoming Pending Actions: Accept or Decline */}
+                        {activeTab === 'incoming' && req.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleAccept(req.id)}
+                              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-brand-teal text-white hover:bg-teal-700 transition-colors cursor-pointer"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleDecline(req.id)}
+                              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-red-600 transition-colors cursor-pointer"
+                            >
+                              Decline
+                            </button>
+                          </>
+                        )}
+
+                        {/* Cancel Action: Outgoing Pending OR any Accepted request (either participant) */}
+                        {((activeTab === 'outgoing' && req.status === 'pending') || req.status === 'accepted') && (
                           <button
-                            onClick={() => handleAccept(req.id)}
-                            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-brand-teal text-white hover:bg-teal-700 transition-colors cursor-pointer"
-                          >
-                            Accept
-                          </button>
-                          <button
-                            onClick={() => handleDecline(req.id)}
+                            onClick={() => handleCancel(req.id)}
                             className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-red-600 transition-colors cursor-pointer"
                           >
-                            Decline
+                            Cancel Request
                           </button>
-                        </>
-                      )}
+                        )}
 
-                      {/* Cancel Action: Outgoing Pending OR any Accepted request (either participant) */}
-                      {((activeTab === 'outgoing' && req.status === 'pending') || req.status === 'accepted') && (
-                        <button
-                          onClick={() => handleCancel(req.id)}
-                          className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-red-600 transition-colors cursor-pointer"
-                        >
-                          Cancel Request
-                        </button>
-                      )}
-
-                      {/* Accepted or Completed Action: View Session */}
-                      {(req.status === 'accepted' || req.status === 'completed') && (
-                        <button
-                          onClick={() => handleViewSession(req.id)}
-                          className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-brand-navy text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                        >
-                          View Session Details
-                        </button>
-                      )}
+                        {/* Accepted or Completed Action: View Session */}
+                        {(req.status === 'accepted' || req.status === 'completed') && (
+                          <button
+                            onClick={() => handleViewSession(req.id)}
+                            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-brand-navy text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                          >
+                            View Session Details
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

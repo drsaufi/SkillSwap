@@ -182,6 +182,21 @@ class FakeSupabaseExchange:
             }
         }
 
+        self.profiles: dict[str, dict[str, Any]] = {
+            USER_A_ID: {
+                "user_id": USER_A_ID,
+                "display_name": "Ahmad",
+            },
+            USER_B_ID: {
+                "user_id": USER_B_ID,
+                "display_name": "Sarah",
+            },
+            USER_C_ID: {
+                "user_id": USER_C_ID,
+                "display_name": "Charlie",
+            },
+        }
+
     def _get_caller_id(self, request: httpx.Request) -> str | None:
         token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
         return KNOWN_USERS.get(token)
@@ -519,6 +534,38 @@ class FakeSupabaseExchange:
                     matching.append(s)
 
                 return httpx.Response(200, json=matching)
+
+        # 5. PostgREST table /rest/v1/profiles
+        if path.startswith("/rest/v1/profiles"):
+            with self._lock:
+                self.rest_calls.append(request)
+            parsed = urlparse(str(url))
+            qp = parse_qs(parsed.query)
+            user_id_filter = qp.get("user_id", [""])[0]
+            if user_id_filter.startswith("in.("):
+                raw_ids = user_id_filter.removeprefix("in.(").removesuffix(")").split(",")
+                matching_profiles = [
+                    p for uid, p in self.profiles.items() if uid in raw_ids
+                ]
+                return httpx.Response(200, json=matching_profiles)
+            return httpx.Response(200, json=list(self.profiles.values()))
+
+        # 6. PostgREST table /rest/v1/skills
+        if path.startswith("/rest/v1/skills"):
+            with self._lock:
+                self.rest_calls.append(request)
+            parsed = urlparse(str(url))
+            qp = parse_qs(parsed.query)
+            id_filter = qp.get("id", [""])[0]
+            if id_filter.startswith("in.("):
+                raw_ids = id_filter.removeprefix("in.(").removesuffix(")").split(",")
+                matching_skills = [
+                    {"id": s["id"], "skill_name": s["skill_name"]}
+                    for sid, s in self.skills.items()
+                    if sid in raw_ids
+                ]
+                return httpx.Response(200, json=matching_skills)
+            return httpx.Response(200, json=[{"id": s["id"], "skill_name": s["skill_name"]} for s in self.skills.values()])
 
         return httpx.Response(404, json={"msg": "not found"})
 
@@ -1032,3 +1079,56 @@ def test_health_remains_public(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_get_exchange_requests_enriched_with_participant_and_skill_names(
+    client: TestClient,
+) -> None:
+    """Verify that exchange requests are enriched with display names and skill names."""
+    response = client.get("/exchange-requests?role=outgoing", headers=bearer(TOKEN_A))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    item = next(r for r in data["items"] if r["id"] == REQUEST_1_ID)
+    assert item["requester_display_name"] == "Ahmad"
+    assert item["receiver_display_name"] == "Sarah"
+    assert item["offered_skill_name"] == "Python Automation"
+    assert item["wanted_skill_name"] == "Figma Design"
+
+
+def test_get_exchange_requests_handles_deactivated_skills_gracefully(
+    client: TestClient, fake_db: FakeSupabaseExchange
+) -> None:
+    """Ensure historically referenced skills resolve name even after deactivation."""
+    req_inactive_id = str(uuid4())
+    fake_db.requests[req_inactive_id] = {
+        "id": req_inactive_id,
+        "requester_user_id": USER_A_ID,
+        "receiver_user_id": USER_B_ID,
+        "offered_skill_id": INACTIVE_SKILL_ID,
+        "wanted_skill_id": WANTED_SKILL_ID,
+        "message": "Swap inactive skill",
+        "status": "pending",
+        "proposed_datetime": FUTURE_TIME,
+        "format": "online",
+        "created_at": "2026-01-03T10:00:00Z",
+        "updated_at": "2026-01-03T10:00:00Z",
+    }
+    response = client.get(f"/exchange-requests?role=outgoing", headers=bearer(TOKEN_A))
+    assert response.status_code == 200
+    item = next(r for r in response.json()["items"] if r["id"] == req_inactive_id)
+    assert item["offered_skill_name"] == "Legacy Perl"
+    assert item["wanted_skill_name"] == "Figma Design"
+
+
+def test_get_exchange_requests_never_exposes_sensitive_fields(
+    client: TestClient,
+) -> None:
+    """Verify no emails, passwords, tokens or credentials are in request payload."""
+    response = client.get("/exchange-requests", headers=bearer(TOKEN_A))
+    assert response.status_code == 200
+    for item in response.json()["items"]:
+        assert "email" not in item
+        assert "password" not in item
+        assert "token" not in item
+        assert "access_token" not in item
