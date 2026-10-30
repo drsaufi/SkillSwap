@@ -250,8 +250,41 @@ def translate_db_error(
     )
 
 
+def not_authenticated_error() -> AppError:
+    """No usable credentials were supplied (HTTP 401)."""
+    return AppError(
+        status_code=401,
+        error_code="not_authenticated",
+        message="Authentication is required to perform this action.",
+    )
+
+
+def invalid_token_error() -> AppError:
+    """The supplied access token is malformed, invalid or expired (HTTP 401)."""
+    return AppError(
+        status_code=401,
+        error_code="invalid_token",
+        message="The access token is invalid or has expired.",
+    )
+
+
+def auth_unavailable_error() -> AppError:
+    """Authentication could not be checked right now (HTTP 503).
+
+    Used for Supabase Auth outages, timeouts, rate limiting and server
+    misconfiguration. It deliberately says nothing about the cause.
+    """
+    return AppError(
+        status_code=503,
+        error_code="auth_unavailable",
+        message="Authentication is temporarily unavailable. Please try again later.",
+    )
+
+
 def _build_error_response(app_error: AppError) -> JSONResponse:
     """Format an `AppError` as a consistent JSON response."""
+    # RFC 9110 requires every 401 to advertise how to authenticate.
+    headers = {"WWW-Authenticate": "Bearer"} if app_error.status_code == 401 else None
     return JSONResponse(
         status_code=app_error.status_code,
         content={
@@ -261,6 +294,7 @@ def _build_error_response(app_error: AppError) -> JSONResponse:
                 "message": app_error.message,
             },
         },
+        headers=headers,
     )
 
 
